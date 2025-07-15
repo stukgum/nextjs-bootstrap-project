@@ -1,0 +1,411 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Header from '../../components/ui/Header';
+import Breadcrumb from '../../components/ui/Breadcrumb';
+import BeatPlaybackPanel from './components/BeatPlaybackPanel';
+import LyricEditor from './components/LyricEditor';
+import RegenerationPanel from './components/RegenerationPanel';
+import BottomToolbar from './components/BottomToolbar';
+import QualityScoreWidget from './components/QualityScoreWidget';
+import Icon from '../../components/AppIcon';
+import Button from '../../components/ui/Button';
+import AIClient from '../../lib/aiClient';
+
+const LyricGenerationWorkspace = () => {
+  const navigate = useNavigate();
+  
+  // Audio playback state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(45);
+  const [duration, setDuration] = useState(180);
+  const [tempo, setTempo] = useState(128);
+  const [isLooping, setIsLooping] = useState(false);
+  
+  // Lyric editing state
+  const [lyrics, setLyrics] = useState('');
+  const [currentLine, setCurrentLine] = useState(0);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  // Generation state
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [currentStyle, setCurrentStyle] = useState('pop');
+  
+  // UI state
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
+  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
+  const [mobileActivePanel, setMobileActivePanel] = useState('editor');
+  
+  // Mock current beat data
+  const currentBeat = {
+    id: 'beat-001',
+    title: 'Midnight Dreams',
+    artist: 'AI Producer',
+    bpm: 128,
+    key: 'C Major',
+    genre: 'Pop',
+    duration: 180,
+    waveformUrl: 'https://example.com/waveform.json'
+  };
+
+  // Mock collaborators
+  const collaborators = [
+    { id: 1, name: 'Alex Martinez', color: '#6B46C1', cursor: { line: 2, position: 15 } },
+    { id: 2, name: 'Sarah Chen', color: '#EC4899', cursor: { line: 5, position: 8 } }
+  ];
+
+  // Mock comments
+  const comments = [
+    { id: 1, lineIndex: 1, user: 'Alex', text: 'Love this line!', timestamp: new Date() }
+  ];
+
+  // Quality metrics
+  const qualityMetrics = {
+    rhyme: 0.88,
+    flow: 0.94,
+    coherence: 0.91,
+    vocabulary: 0.85,
+    emotion: 0.89
+  };
+
+  const overallQualityScore = Object.values(qualityMetrics).reduce((a, b) => a + b, 0) / Object.values(qualityMetrics).length;
+
+  // AI client instance
+  const aiClient = new AIClient();
+
+  // Simulate audio playback
+  useEffect(() => {
+    let interval;
+    if (isPlaying) {
+      interval = setInterval(() => {
+        setCurrentTime(prev => {
+          if (prev >= duration) {
+            if (isLooping) {
+              return 0;
+            } else {
+              setIsPlaying(false);
+              return duration;
+            }
+          }
+          return prev + 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isPlaying, duration, isLooping]);
+
+  // Update current line based on playback time
+  useEffect(() => {
+    if (isPlaying) {
+      const lineIndex = Math.floor((currentTime / duration) * 12); // 12 total lines
+      setCurrentLine(lineIndex);
+    }
+  }, [currentTime, duration, isPlaying]);
+
+  const handlePlayPause = () => {
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleSeek = (time) => {
+    setCurrentTime(time);
+  };
+
+  const handleTempoChange = (newTempo) => {
+    setTempo(newTempo);
+  };
+
+  const handleLoopToggle = () => {
+    setIsLooping(!isLooping);
+  };
+
+  const handleLyricsChange = (sectionIndex, lineIndex, newText) => {
+    setLyrics(newText);
+    setHasUnsavedChanges(true);
+  };
+
+  const handleRegenerate = async (settings) => {
+    setIsGenerating(true);
+    try {
+      const prompt = `Generate lyrics in style ${currentStyle} for beat titled "${currentBeat.title}" by ${currentBeat.artist}.`;
+      const generatedLyrics = await aiClient.generateLyrics(prompt);
+      setLyrics(generatedLyrics);
+      setHasUnsavedChanges(true);
+    } catch (error) {
+      console.error('Error generating lyrics:', error);
+      alert('Failed to generate lyrics. Please try again.');
+    }
+    setIsGenerating(false);
+  };
+
+  const handleStyleChange = (newStyle) => {
+    setCurrentStyle(newStyle);
+  };
+
+  const handleAddComment = (lineIndex, commentText, selectedText) => {
+    console.log('Adding comment:', { lineIndex, commentText, selectedText });
+  };
+
+  const handleExport = (format) => {
+    console.log('Exporting as:', format);
+  };
+
+  const handleShare = (method) => {
+    console.log('Sharing via:', method);
+  };
+
+  const handleSave = async () => {
+    // Simulate save
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setHasUnsavedChanges(false);
+  };
+
+  const handleProjectSettings = () => {
+    console.log('Opening project settings');
+  };
+
+  const handleImproveQuality = (metric) => {
+    console.log('Improving:', metric);
+    handleRegenerate({ focus: metric });
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Header />
+      <Breadcrumb />
+      
+      <div className="workspace-container pb-20">
+        {/* Mobile Panel Selector */}
+        <div className="lg:hidden px-4 mb-4">
+          <div className="flex bg-surface rounded-lg p-1">
+            {[
+              { id: 'playback', label: 'Beat', icon: 'Music' },
+              { id: 'editor', label: 'Lyrics', icon: 'PenTool' },
+              { id: 'generate', label: 'AI', icon: 'Sparkles' },
+              { id: 'quality', label: 'Quality', icon: 'Target' }
+            ].map((panel) => (
+              <button
+                key={panel.id}
+                onClick={() => setMobileActivePanel(panel.id)}
+                className={\`flex-1 flex items-center justify-center space-x-2 py-2 px-3 rounded-md transition-colors duration-200 \${
+                  mobileActivePanel === panel.id
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }\`}
+              >
+                <Icon name={panel.icon} size={16} />
+                <span className="text-sm font-medium">{panel.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Desktop Layout */}
+        <div className="hidden lg:grid lg:grid-cols-12 gap-6 px-4 lg:px-6">
+          {/* Left Panel - Beat Playback */}
+          <div className={\`transition-all duration-300 \${leftPanelCollapsed ? 'lg:col-span-1' : 'lg:col-span-3'}\`}>
+            {leftPanelCollapsed ? (
+              <div className="space-y-4">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setLeftPanelCollapsed(false)}
+                  className="w-full"
+                >
+                  <Icon name="ChevronRight" size={20} />
+                </Button>
+                <div className="space-y-2">
+                  <Button
+                    variant={isPlaying ? "default" : "outline"}
+                    size="icon"
+                    onClick={handlePlayPause}
+                    className="w-full"
+                  >
+                    <Icon name={isPlaying ? "Pause" : "Play"} size={20} />
+                  </Button>
+                  <div className="text-center">
+                    <div className="text-xs text-muted-foreground">{Math.round(tempo)}</div>
+                    <div className="text-xs text-muted-foreground">BPM</div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-heading font-semibold text-foreground">Beat Control</h2>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setLeftPanelCollapsed(true)}
+                  >
+                    <Icon name="ChevronLeft" size={16} />
+                  </Button>
+                </div>
+                <BeatPlaybackPanel
+                  currentBeat={currentBeat}
+                  isPlaying={isPlaying}
+                  onPlayPause={handlePlayPause}
+                  currentTime={currentTime}
+                  duration={duration}
+                  onSeek={handleSeek}
+                  tempo={tempo}
+                  onTempoChange={handleTempoChange}
+                  onLoopToggle={handleLoopToggle}
+                  isLooping={isLooping}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Center Panel - Lyric Editor */}
+          <div className={\`transition-all duration-300 \${
+            leftPanelCollapsed && rightPanelCollapsed ? 'lg:col-span-10' : leftPanelCollapsed || rightPanelCollapsed ?'lg:col-span-7': 'lg:col-span-6'
+          }\`}>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="font-heading font-semibold text-foreground">Lyric Editor</h2>
+                <div className="flex items-center space-x-2">
+                  <QualityScoreWidget
+                    overallScore={overallQualityScore}
+                    metrics={qualityMetrics}
+                    onImprove={handleImproveQuality}
+                  />
+                </div>
+              </div>
+              <LyricEditor
+                lyrics={lyrics}
+                onLyricsChange={handleLyricsChange}
+                currentLine={currentLine}
+                isPlaying={isPlaying}
+                collaborators={collaborators}
+                comments={comments}
+                onAddComment={handleAddComment}
+                qualityScore={overallQualityScore}
+              />
+            </div>
+          </div>
+
+          {/* Right Panel - AI Generation */}
+          <div className={\`transition-all duration-300 \${rightPanelCollapsed ? 'lg:col-span-1' : 'lg:col-span-3'}\`}>
+            {rightPanelCollapsed ? (
+              <div className="space-y-4">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setRightPanelCollapsed(false)}
+                  className="w-full"
+                >
+                  <Icon name="ChevronLeft" size={20} />
+                </Button>
+                <div className="space-y-2">
+                  <Button
+                    variant="default"
+                    size="icon"
+                    onClick={() => handleRegenerate({ section: 'all' })}
+                    disabled={isGenerating}
+                    className="w-full"
+                  >
+                    <Icon name="Sparkles" size={20} />
+                  </Button>
+                  <div className="text-center">
+                    <div className="text-xs text-muted-foreground">AI</div>
+                    <div className="text-xs text-muted-foreground">Generate</div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-heading font-semibold text-foreground">AI Tools</h2>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setRightPanelCollapsed(true)}
+                  >
+                    <Icon name="ChevronRight" size={16} />
+                  </Button>
+                </div>
+                <RegenerationPanel
+                  onRegenerate={handleRegenerate}
+                  isGenerating={isGenerating}
+                  currentStyle={currentStyle}
+                  onStyleChange={handleStyleChange}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Mobile Layout */}
+        <div className="lg:hidden px-4">
+          {mobileActivePanel === 'playback' && (
+            <BeatPlaybackPanel
+              currentBeat={currentBeat}
+              isPlaying={isPlaying}
+              onPlayPause={handlePlayPause}
+              currentTime={currentTime}
+              duration={duration}
+              onSeek={handleSeek}
+              tempo={tempo}
+              onTempoChange={handleTempoChange}
+              onLoopToggle={handleLoopToggle}
+              isLooping={isLooping}
+            />
+          )}
+
+          {mobileActivePanel === 'editor' && (
+            <LyricEditor
+              lyrics={lyrics}
+              onLyricsChange={handleLyricsChange}
+              currentLine={currentLine}
+              isPlaying={isPlaying}
+              collaborators={collaborators}
+              comments={comments}
+              onAddComment={handleAddComment}
+              qualityScore={overallQualityScore}
+            />
+          )}
+
+          {mobileActivePanel === 'generate' && (
+            <RegenerationPanel
+              onRegenerate={handleRegenerate}
+              isGenerating={isGenerating}
+              currentStyle={currentStyle}
+              onStyleChange={handleStyleChange}
+            />
+          )}
+
+          {mobileActivePanel === 'quality' && (
+            <QualityScoreWidget
+              overallScore={overallQualityScore}
+              metrics={qualityMetrics}
+              onImprove={handleImproveQuality}
+            />
+          )}
+        </div>
+
+        {/* Floating Action Button for Mobile */}
+        <div className="lg:hidden fixed bottom-20 right-4 z-30">
+          <Button
+            variant="default"
+            size="icon"
+            onClick={handlePlayPause}
+            className="h-14 w-14 rounded-full shadow-elevation-2"
+          >
+            <Icon name={isPlaying ? "Pause" : "Play"} size={24} />
+          </Button>
+        </div>
+      </div>
+
+      {/* Bottom Toolbar */}
+      <BottomToolbar
+        onExport={handleExport}
+        onShare={handleShare}
+        onSave={handleSave}
+        hasUnsavedChanges={hasUnsavedChanges}
+        projectName="Midnight Dreams"
+        onProjectSettings={handleProjectSettings}
+      />
+    </div>
+  );
+};
+
+export default LyricGenerationWorkspace;
